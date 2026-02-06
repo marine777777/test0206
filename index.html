@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>클래식 스네이크 게임</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            touch-action: none;
+            background-color: #1a202c;
+            color: white;
+            font-family: 'Pretendard', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        #game-canvas {
+            border: 4px solid #4a5568;
+            border-radius: 8px;
+            background-color: #000;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            max-width: 90vw;
+            max-height: 90vw;
+        }
+        .control-btn {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #4a5568;
+            border-radius: 50%;
+            touch-action: manipulation;
+        }
+        .control-btn:active {
+            background-color: #718096;
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="text-center mb-4">
+        <h1 class="text-3xl font-bold text-green-500">SNAKE GAME</h1>
+        <p class="text-gray-400">점수: <span id="score">0</span></p>
+    </div>
+
+    <canvas id="game-canvas" width="400" height="400"></canvas>
+
+    <!-- 모바일 컨트롤러 -->
+    <div class="mt-8 grid grid-cols-3 gap-2 md:hidden">
+        <div></div>
+        <button class="control-btn" onclick="changeDirection('up')">▲</button>
+        <div></div>
+        <button class="control-btn" onclick="changeDirection('left')">◀</button>
+        <button class="control-btn" onclick="changeDirection('down')">▼</button>
+        <button class="control-btn" onclick="changeDirection('right')">▶</button>
+    </div>
+
+    <div id="game-over" class="fixed inset-0 bg-black bg-opacity-80 flex-col items-center justify-center hidden">
+        <h2 class="text-4xl font-bold text-red-500 mb-4">GAME OVER</h2>
+        <p class="text-xl mb-6">최종 점수: <span id="final-score">0</span></p>
+        <button onclick="resetGame()" class="px-6 py-2 bg-green-600 hover:bg-green-500 rounded-full font-bold transition">다시 시작</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const finalScoreElement = document.getElementById('final-score');
+        const gameOverScreen = document.getElementById('game-over');
+
+        const gridSize = 20;
+        const tileCount = canvas.width / gridSize;
+
+        let score = 0;
+        let dx = 0;
+        let dy = 0;
+        let snake = [
+            {x: 10, y: 10},
+            {x: 10, y: 11},
+            {x: 10, y: 12}
+        ];
+        let food = {x: 5, y: 5};
+        let nextDirection = 'up';
+        let gameActive = false;
+        let gameSpeed = 100;
+
+        // 게임 초기화 및 시작
+        function init() {
+            dx = 0;
+            dy = -1;
+            snake = [
+                {x: 10, y: 10},
+                {x: 10, y: 11},
+                {x: 10, y: 12}
+            ];
+            score = 0;
+            scoreElement.innerText = score;
+            createFood();
+            gameActive = true;
+            gameOverScreen.classList.add('hidden');
+            gameOverScreen.style.display = 'none';
+            main();
+        }
+
+        function main() {
+            if (!gameActive) return;
+
+            if (didGameEnd()) {
+                showGameOver();
+                return;
+            }
+
+            setTimeout(function onTick() {
+                clearCanvas();
+                drawFood();
+                advanceSnake();
+                drawSnake();
+                main();
+            }, gameSpeed);
+        }
+
+        function clearCanvas() {
+            ctx.fillStyle = "black";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 격자 무늬 (선택 사항)
+            ctx.strokeStyle = "#111";
+            for(let i=0; i<canvas.width; i+=gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, canvas.height);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(canvas.width, i);
+                ctx.stroke();
+            }
+        }
+
+        function drawSnake() {
+            snake.forEach((part, index) => {
+                ctx.fillStyle = index === 0 ? "#48BB78" : "#38A169";
+                ctx.strokeStyle = "#1A202C";
+                ctx.fillRect(part.x * gridSize, part.y * gridSize, gridSize, gridSize);
+                ctx.strokeRect(part.x * gridSize, part.y * gridSize, gridSize, gridSize);
+            });
+        }
+
+        function advanceSnake() {
+            const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+            snake.unshift(head);
+
+            const didEatFood = snake[0].x === food.x && snake[0].y === food.y;
+            if (didEatFood) {
+                score += 10;
+                scoreElement.innerText = score;
+                createFood();
+                // 속도 아주 조금씩 증가
+                if (gameSpeed > 50) gameSpeed -= 1;
+            } else {
+                snake.pop();
+            }
+        }
+
+        function didGameEnd() {
+            for (let i = 4; i < snake.length; i++) {
+                if (snake[i].x === snake[0].x && snake[i].y === snake[0].y) return true;
+            }
+            const hitLeftWall = snake[0].x < 0;
+            const hitRightWall = snake[0].x > tileCount - 1;
+            const hitTopWall = snake[0].y < 0;
+            const hitBottomWall = snake[0].y > tileCount - 1;
+            return hitLeftWall || hitRightWall || hitTopWall || hitBottomWall;
+        }
+
+        function createFood() {
+            food.x = Math.floor(Math.random() * tileCount);
+            food.y = Math.floor(Math.random() * tileCount);
+            
+            // 뱀 몸통 위에 음식이 생기지 않도록 확인
+            snake.forEach(function isFoodOnSnake(part) {
+                if (part.x == food.x && part.y == food.y) createFood();
+            });
+        }
+
+        function drawFood() {
+            ctx.fillStyle = "#F56565";
+            ctx.strokeStyle = "white";
+            // 사과 모양처럼 둥글게
+            ctx.beginPath();
+            ctx.arc(
+                (food.x * gridSize) + (gridSize/2), 
+                (food.y * gridSize) + (gridSize/2), 
+                (gridSize/2) - 2, 0, 2 * Math.PI
+            );
+            ctx.fill();
+        }
+
+        function changeDirection(dir) {
+            const goingUp = dy === -1;
+            const goingDown = dy === 1;
+            const goingRight = dx === 1;
+            const goingLeft = dx === -1;
+
+            if (dir === 'left' && !goingRight) { dx = -1; dy = 0; }
+            if (dir === 'up' && !goingDown) { dx = 0; dy = -1; }
+            if (dir === 'right' && !goingLeft) { dx = 1; dy = 0; }
+            if (dir === 'down' && !goingUp) { dx = 0; dy = 1; }
+        }
+
+        // 키보드 이벤트
+        window.addEventListener('keydown', (e) => {
+            switch(e.key) {
+                case 'ArrowLeft': changeDirection('left'); break;
+                case 'ArrowUp': changeDirection('up'); break;
+                case 'ArrowRight': changeDirection('right'); break;
+                case 'ArrowDown': changeDirection('down'); break;
+            }
+        });
+
+        function showGameOver() {
+            gameActive = false;
+            finalScoreElement.innerText = score;
+            gameOverScreen.style.display = 'flex';
+            gameOverScreen.classList.remove('hidden');
+        }
+
+        function resetGame() {
+            gameSpeed = 100;
+            init();
+        }
+
+        // 페이지 로드 시 시작
+        window.onload = init;
+
+    </script>
+</body>
+</html>
